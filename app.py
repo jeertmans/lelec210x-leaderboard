@@ -39,7 +39,10 @@ app = Flask(__name__, template_folder="templates")
 app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=os.environ["FLASK_STATIC_PATH"])
 
 config_path = app.config.get("CONFIG_PATH", DEFAULT_CONFIG_PATH)
-app.config["CONFIG"] = Config.parse_file(config_path)
+try:
+    app.config["CONFIG"] = Config.parse_file(config_path)
+except FileNotFoundError:
+    app.config["CONFIG"] = Config()
 app.config["CONFIG_PATH"] = config_path
 app.config["CONFIG_NEEDS_SAVE"] = False
 
