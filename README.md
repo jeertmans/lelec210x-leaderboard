@@ -13,7 +13,7 @@ poetry install
 poetry shell
 ```
 
-the first time you use this server, you must create a config file:
+The first time you use this server, you must create a config file:
 
 ```bash
 flask config init
@@ -47,6 +47,8 @@ flask --help
 
 > **WARNING:** using `flask run` will not work properly, do not use it.
 
+On you local machine, the leaderboard can be accessed via: http://localhost:5000/lelec2103/leaderboard/index.
+
 ## Usage
 
 Once the server is launched, the configuration file cannot be modified, so make sure to update it before.
@@ -71,7 +73,7 @@ Then, in Python:
 ```python
 import requests
 
-hostname = "http://localhost:5000"
+hostname = "http://localhost:5000/lelec2103"
 key = "aqH27o66E8xz-IotBk11ZZo1ix7Vbs5H2pTXlSra"
 guess = "fire"
 
