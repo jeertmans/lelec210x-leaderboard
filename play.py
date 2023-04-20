@@ -110,7 +110,7 @@ def main(url, key, random_key):
 
         if sound_key in played_sounds:
             info(f"A song has already been played for round, lap: {sound_key}")
-            time.sleep(min(.2, time_before_next_lap))
+            time.sleep(min(0.2, time_before_next_lap))
             continue
 
         played_sounds.add(sound_key)

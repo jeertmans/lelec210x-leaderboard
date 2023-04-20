@@ -1,29 +1,22 @@
 import random
 import time
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
-from flask_login import LoginManager, UserMixin
-from flask_sqlalchemy import SQLAlchemy
 from pydantic import (
     BaseModel,
     Extra,
+    Field,
     PositiveFloat,
     PositiveInt,
     PrivateAttr,
-    confloat,
     conint,
     constr,
     root_validator,
     validator,
 )
-from sqlalchemy import Enum as SQLEnum
-from werkzeug.security import check_password_hash, generate_password_hash
-
-db = SQLAlchemy()
-
-login_manager = LoginManager()
 
 DEFAULT_CONFIG_PATH = Path(".config.json")
 
@@ -59,6 +52,17 @@ class Answer(BaseModel):
     hide: bool = False
 
 
+class Submission(BaseModel):
+    """Holds /submit request from a given group."""
+
+    timestamp: datetime = Field(default_factory=datetime.now)
+    round: conint(ge=0)
+    lap: conint(ge=0)
+    key: str
+    guess: Guess
+    disqualified: bool = False
+
+
 class RoundConfig(BaseModel):
     lap_count: PositiveInt = 20
     lap_duration: PositiveFloat = 13.0
@@ -89,6 +93,7 @@ class RoundsConfig(BaseModel):
     __current_round: conint(ge=0) = PrivateAttr()
     __current_lap: conint(ge=0) = PrivateAttr()
     __finished: bool = PrivateAttr()
+    __submissions: List[Submission] = PrivateAttr([])
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -114,8 +119,88 @@ class RoundsConfig(BaseModel):
 
         return values
 
+    def add_submission(self, submission: Submission):
+        """
+        Adds a new submissions to the list.
+        """
+        self.__submissions.append(submission)
+
+    def get_submissions(
+        self, key: str, round: Optional[int], lap: Optional[int]
+    ) -> List[Guess]:
+        """
+        Returns the guesses submitted by a group for a given round and lap.
+
+        If no guesses were submitted, [Guess.nothing] is returned.
+
+        Guesses are sorted with earliest first, oldest last.
+        """
+        guesses = (
+            submissions.guess
+            for submissions in self.__submissions[::-1]
+            if submissions.key == key
+            and (submissions.round == round or round is None)
+            and (submissions.lap == lap or lap is None)
+        )
+
+        return list(guesses) or [Guess.nothing]
+
+    def get_submissions_as_dict(
+        self, key: str, round: Optional[int], lap: Optional[int]
+    ) -> List[dict]:
+        """
+        Returns the submissions as dictonaries by a group for a given round and lap.
+        """
+        return list(
+            submissions.dict()
+            for submissions in self.__submissions
+            if submissions.key == key
+            and (submissions.round == round or round is None)
+            and (submissions.lap == lap or lap is None)
+        )
+
+    def delete_submissions(self, key: str, round: Optional[int], lap: Optional[int]):
+        """
+        Deletes the guesses submitted by a group for a given round and lap.
+        """
+        self.__submissions = [
+            submissions
+            for submissions in self.__submissions
+            if submissions.key != key
+            and submissions.round != round
+            and submissions.lap != lap
+        ]
+
+    def get_last_submission(self, key: str, round: int, lap: int) -> Guess:
+        """
+        Returns the last guess submitted by a group for a given round and lap.
+
+        If no guesses were submitted, Guess.nothing is returned.
+        """
+        guesses = (
+            submissions.guess
+            for submissions in self.__submissions[::-1]
+            if submissions.key == key
+            and submissions.round == round
+            and submissions.lap == lap
+        )
+
+        return next(guesses, Guess.nothing)
+
+    def is_disqualified(self, key: str, round: int, lap: int) -> bool:
+        """
+        Returns true if a group was disqualified for a given round and lap.
+        """
+        return any(
+            submissions.guess
+            for submissions in self.__submissions
+            if submissions.key == key
+            and submissions.round == round
+            and submissions.lap == lap
+        )
+
     def restart(self):
-        Submission.clear()
+        self.__submissions.clear()
 
         possibles_answers = Guess.possible_values()
 
@@ -279,81 +364,6 @@ class LeaderboardStatus(BaseModel):
         extra = Extra.forbid
 
 
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
-    password_hash = db.Column(db.String(256))
-
-    def __repr__(self):
-        return f"User({self.username})"
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password_hash(self, password):
-        return check_password_hash(self.password_hash, password)
-
-
-@login_manager.user_loader
-def load_user(id):
-    return User.query.get(int(id))
-
-
-class Submission(db.Model):
-    """Holds /submit request from a given group."""
-
-    id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.DateTime, server_default=db.func.now())
-    seed = db.Column(db.Integer)
-    round = db.Column(db.Integer)
-    lap = db.Column(db.Integer)
-    key = db.Column(db.String(128))
-    guess = db.Column(SQLEnum(Guess))
-    disqualified = db.Column(db.Boolean)
-
-    @classmethod
-    def get_submissions(cls, key: str, round: int, lap: int) -> List[Guess]:
-        """
-        Returns the guesses submitted by a group for a given round and lap.
-
-        If no guesses were submitted, [Guess.nothing] is returned.
-
-        Guesses are sorted with earliest first, oldest last.
-        """
-        guesses = (
-            cls.query.with_entities(Submission.guess)
-            .filter_by(key=key, round=round, lap=lap)
-            .order_by(cls.timestamp.desc())
-            .all()
-        )
-
-        if guesses:
-            return [guess[0] for guess in guesses]
-
-        return [Guess.nothing]
-
-    @classmethod
-    def is_disqualified(cls, key: str, round: int, lap: int) -> bool:
-        """
-        Returns true if a group was disqualified for a given round and lap.
-        """
-        disqualified = (
-            cls.query.with_entities(Submission.disqualified)
-            .filter_by(key=key, round=round, lap=lap)
-            .all()
-        )
-
-        for (is_disqualified,) in disqualified:
-            if is_disqualified:
-                return True
-        return False
-
-    @classmethod
-    def clear(cls):
-        cls.query.delete()
-        db.session.commit()
-
-
 class Config(BaseModel):
     group_configs: List[GroupConfig] = []
     rounds_config: RoundsConfig = RoundsConfig()
@@ -379,6 +389,9 @@ class Config(BaseModel):
             names.add(name)
 
         return v
+
+    def clear(self):
+        self.__submissions.clear()
 
     def save_to(self, path: str):
         with open(path, "w") as f:
@@ -419,17 +432,19 @@ class Config(BaseModel):
         rows = []
         for group_config in self.group_configs:
             answers = []
-            score = .0
+            score = 0.0
             for lap, correct_answer in enumerate(correct_answers):
                 # Getting last submission
-                guess = Submission.get_submissions(
+                guess = self.rounds_config.get_last_submission(
                     group_config.key, current_round, lap
-                )[-1]
+                )
 
-                if Submission.is_disqualified(group_config.key, current_round, lap):
+                if self.rounds_config.is_disqualified(
+                    group_config.key, current_round, lap
+                ):
                     guess = Guess.disqualified
                     correct = False
-                    score -= .5
+                    score -= 0.5
 
                 elif (
                     self.rounds_config.get_current_round_config().only_check_for_presence
@@ -443,7 +458,7 @@ class Config(BaseModel):
                     correct = guess == correct_answer
 
                 if correct:
-                    score += 1.
+                    score += 1.0
 
                 hide = lap > current_lap
 

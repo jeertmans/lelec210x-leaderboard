@@ -13,7 +13,7 @@ poetry install
 poetry shell
 ```
 
-The first time you use this server, you must create a config file:
+the first time you use this server, you must create a config file:
 
 ```bash
 flask config init
@@ -26,12 +26,6 @@ flask config generate-key "Teaching Assistants"
 ```
 
 The key will be useful to send your guesses to the server.
-
-You also need to create the database:
-
-```bash
-flask sql init
-```
 
 Then, the server must be launched with:
 
@@ -46,8 +40,6 @@ flask --help
 ```
 
 > **WARNING:** using `flask run` will not work properly, do not use it.
-
-On you local machine, the leaderboard can be accessed via: http://localhost:5000/lelec2103/leaderboard/index.
 
 ## Usage
 
@@ -73,7 +65,7 @@ Then, in Python:
 ```python
 import requests
 
-hostname = "http://localhost:5000/lelec2103"
+hostname = "http://localhost:5000"
 key = "aqH27o66E8xz-IotBk11ZZo1ix7Vbs5H2pTXlSra"
 guess = "fire"
 

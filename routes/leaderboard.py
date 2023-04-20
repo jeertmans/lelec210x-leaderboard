@@ -4,7 +4,7 @@ from flask import current_app as app
 from flask import jsonify, make_response, render_template
 from flask_restx import Api, Resource
 
-from backend.models import Guess, Submission, db
+from backend.models import Guess, Submission
 
 leaderboard = Blueprint("leaderboard", __name__, static_folder="../static")
 
@@ -38,20 +38,15 @@ class Submit(Resource):
 
             if not rounds_config.is_paused():
                 if flask.request.method == "PATCH":
-                    last = (
-                        Submission.query.filter_by(
-                            round=current_round,
-                            lap=current_lap,
-                            key=key,
-                            disqualified=False,
-                        )
-                        .order_by(Submission.timestamp.desc())
-                        .first()
+                    last = rounds_config.get_last_submission(
+                        round=current_round,
+                        lap=current_lap,
+                        key=key,
+                        disqualified=False,
                     )
 
                     if last:
                         last.guess = guess
-                        db.session.commit()
                         return make_response(
                             jsonify(
                                 {
@@ -64,9 +59,8 @@ class Submit(Resource):
                             200,
                         )
 
-                db.session.add(
+                rounds_config.add_submission(
                     Submission(
-                        seed=rounds_config.seed,  # Unique for each reset
                         round=current_round,
                         lap=current_lap,
                         key=key,
@@ -74,7 +68,6 @@ class Submit(Resource):
                         disqualified=disqualified,
                     )
                 )
-                db.session.commit()
                 return make_response(
                     jsonify(
                         {
@@ -162,17 +155,12 @@ class Submissions(Resource):
     def dispatch_request(self, key, round, lap):
         try:
             app.config["CONFIG"].get_group_by_key(key)  # IndexError if invalid key
-
-            query = Submission.query.filter_by(key=key)
-
-            if round:
-                query = query.filter_by(round=round)
-
-            if lap:
-                query = query.filter_by(lap=lap)
+            rounds_config = app.config["CONFIG"].rounds_config
 
             if flask.request.method == "GET":
-                submissions = [submission.dict() for submission in query.all()]
+                submissions = rounds_config.get_submissions_as_dict(
+                    key=key, round=round, lap=lap
+                )
                 return make_response(
                     jsonify(
                         {
@@ -185,8 +173,7 @@ class Submissions(Resource):
                     200,
                 )
             elif flask.request.method == "DELETE":
-                query.delete()
-                db.session.commit()
+                rounds_config.delete_submissions(key=key, round=round, lap=lap)
                 return make_response(
                     jsonify(
                         {"method": flask.request.method, "round": round, "lap": lap}
