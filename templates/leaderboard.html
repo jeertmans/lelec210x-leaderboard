@@ -16,6 +16,9 @@
       <h2>Paused</h2>
       {{/if}}
       <h2>Round {{ current_round }}/{{ number_of_rounds }} | Lap {{ current_lap }}/{{ number_of_laps }} | Time before next lap: {{ time_before_next_lap }} s. </h2>
+      {{#if this.round_name}}
+      <h2>{{ round_name }}</h2>
+      {{/if}}
     </header>
     <main>
       <div id="leaderboard_wrapper" class="table_wrapper">
@@ -35,7 +38,7 @@
               {{#if this.hide}}
               <td class="hide"></td>
               {{else}}
-              <td class="{{this.guess}} {{this.correct}}"></td>
+              <td class="{{this.guess}} {{this.status}}"></td>
               {{/if}}
               {{/each}}
               <th>{{this.score}}</th>

@@ -115,13 +115,21 @@ tr:nth-child(even) {
     var(--table-border-color);
 }
 
-/* True / False class */
-.true {
+/* Status class */
+.correct {
   background-color: #77dd77;
 }
 
-.false {
+.incorrect {
   background-color: #ff6961;
+}
+
+.correct_penalized {
+  background-color: orange;
+}
+
+.incorrect_penalized {
+  background-color: grey;
 }
 
 /* Icons */
@@ -172,14 +180,6 @@ tr:nth-child(even) {
   background-position: center;
   background-size: auto 75%;
   background-repeat: no-repeat;
-}
-
-.disqualified {
-  background-image: url("./class_icons/angry.png");
-  background-position: center;
-  background-size: auto 75%;
-  background-repeat: no-repeat;
-  background-color: orange !important;
 }
 
 .hide {

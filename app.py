@@ -2,13 +2,12 @@ import os
 
 import eventlet
 import markdown
+from backend.models import DEFAULT_CONFIG_PATH, Config
+from cli.config import config
 from flask import Flask
 from flask.cli import load_dotenv
 from flask_apscheduler import APScheduler
 from flask_socketio import SocketIO
-
-from backend.models import DEFAULT_CONFIG_PATH, Config
-from cli.config import config
 from routes.index import index
 from routes.leaderboard import leaderboard
 
@@ -34,7 +33,7 @@ class PrefixMiddleware(object):
 
 app = Flask(__name__, template_folder="templates")
 
-if app.debug and os.environ["FLASK_PROFILER"]:
+if app.debug and os.environ.get("FLASK_PROFILER", "0") == "1":
     from werkzeug.middleware.profiler import ProfilerMiddleware
 
     if not os.path.exists("profiler"):

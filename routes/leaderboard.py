@@ -1,10 +1,9 @@
 import flask
+from backend.models import Guess, Submission
 from flask import Blueprint
 from flask import current_app as app
 from flask import jsonify, make_response, render_template
 from flask_restx import Api, Resource
-
-from backend.models import Guess, Submission
 
 leaderboard = Blueprint("leaderboard", __name__, static_folder="../static")
 
@@ -34,7 +33,7 @@ class Submit(Resource):
             rounds_config = app.config["CONFIG"].rounds_config
             current_round = rounds_config.get_current_round()
             current_lap = rounds_config.get_current_lap()
-            disqualified = not rounds_config.accepts_submissions()
+            penalized = not rounds_config.accepts_submissions()
 
             if not rounds_config.is_paused():
                 if flask.request.method == "PATCH":
@@ -42,10 +41,9 @@ class Submit(Resource):
                         round=current_round,
                         lap=current_lap,
                         key=key,
-                        disqualified=False,
                     )
 
-                    if last:
+                    if last != Guess.nothing:
                         last.guess = guess
                         return make_response(
                             jsonify(
@@ -53,7 +51,7 @@ class Submit(Resource):
                                     "guess": guess,
                                     "round": current_round,
                                     "lap": current_lap,
-                                    "disqualified": last.disqualified,
+                                    "penalized": last.penalized,
                                 }
                             ),
                             200,
@@ -65,7 +63,7 @@ class Submit(Resource):
                         lap=current_lap,
                         key=key,
                         guess=guess,
-                        disqualified=disqualified,
+                        penalized=penalized,
                     )
                 )
                 return make_response(
@@ -74,7 +72,7 @@ class Submit(Resource):
                             "guess": guess,
                             "round": current_round,
                             "lap": current_lap,
-                            "disqualified": disqualified,
+                            "penalized": penalized,
                         }
                     ),
                     200,

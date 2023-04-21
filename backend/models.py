@@ -27,6 +27,13 @@ class GroupConfig(BaseModel):
     admin: bool = False
 
 
+class Status(str, Enum):
+    correct = "correct"
+    incorrect = "incorrect"
+    correct_penalized = "correct_penalized"
+    incorrect_penalized = "incorrect_penalized"
+
+
 class Guess(str, Enum):
     birds = "birds"
     chainsaw = "chainsaw"
@@ -35,20 +42,20 @@ class Guess(str, Enum):
     helicopter = "helicopter"
     nothing = "nothing"
     received = "received"
-    disqualified = "disqualified"
+    penalized = "penalized"
 
     @classmethod
     def possible_values(self):
         return [
             guess
             for guess in Guess
-            if guess not in [Guess.nothing, Guess.received, Guess.disqualified]
+            if guess not in [Guess.nothing, Guess.received, Guess.penalized]
         ]
 
 
 class Answer(BaseModel):
     guess: Guess
-    correct: bool = False
+    status: Status = Status.incorrect
     hide: bool = False
 
 
@@ -60,10 +67,11 @@ class Submission(BaseModel):
     lap: conint(ge=0)
     key: str
     guess: Guess
-    disqualified: bool = False
+    penalized: bool = False
 
 
 class RoundConfig(BaseModel):
+    name: str = ""
     lap_count: PositiveInt = 20
     lap_duration: PositiveFloat = 13.0
     only_check_for_presence: bool = False
@@ -94,6 +102,7 @@ class RoundsConfig(BaseModel):
     __current_lap: conint(ge=0) = PrivateAttr()
     __finished: bool = PrivateAttr()
     __submissions: List[Submission] = PrivateAttr([])
+    __await_next_round: bool = PrivateAttr(False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -187,12 +196,12 @@ class RoundsConfig(BaseModel):
 
         return next(guesses, Guess.nothing)
 
-    def is_disqualified(self, key: str, round: int, lap: int) -> bool:
+    def is_penalized(self, key: str, round: int, lap: int) -> bool:
         """
-        Returns true if a group was disqualified for a given round and lap.
+        Returns true if a group was penalized for a given round and lap.
         """
         return any(
-            submissions.guess
+            submissions.penalized
             for submissions in self.__submissions
             if submissions.key == key
             and submissions.round == round
@@ -265,6 +274,7 @@ class RoundsConfig(BaseModel):
         if not self.__paused:
             return
 
+        self.__await_next_round = False
         self.__round_start_time += time.time() - self.__time_when_paused
         self.__paused = False
 
@@ -276,9 +286,15 @@ class RoundsConfig(BaseModel):
         self.__paused = True
 
     def get_current_round(self) -> int:
-        return self.__current_round
+        if self.__await_next_round:
+            return self.__current_round - 1
+        else:
+            return self.__current_round
 
     def get_current_lap(self) -> int:
+        if self.__await_next_round:
+            return self.get_current_number_of_laps() - 1
+
         elapsed = self.time() - self.__round_start_time
         lap_duration = self.rounds[self.get_current_round()].lap_duration
 
@@ -298,7 +314,9 @@ class RoundsConfig(BaseModel):
                 self.__round_start_time = time.time()
 
                 if self.pause_between_rounds:
+                    self.__await_next_round = True
                     self.pause()
+                    return self.get_current_number_of_laps() - 1
 
                 return 0  # First lap of next round
 
@@ -320,7 +338,7 @@ class RoundsConfig(BaseModel):
         return self.__paused
 
     def time_before_next_lap(self) -> float:
-        if self.__finished:
+        if self.__finished or self.__await_next_round:
             return 0.0
 
         elapsed = self.time() - self.__round_start_time
@@ -349,6 +367,7 @@ class LeaderboardRow(BaseModel):
 
 
 class LeaderboardStatus(BaseModel):
+    round_name: str
     current_correct_guess: Guess
     current_round: conint(ge=0)
     current_lap: conint(ge=0)
@@ -439,14 +458,7 @@ class Config(BaseModel):
                     group_config.key, current_round, lap
                 )
 
-                if self.rounds_config.is_disqualified(
-                    group_config.key, current_round, lap
-                ):
-                    guess = Guess.disqualified
-                    correct = False
-                    score -= 0.5
-
-                elif (
+                if (
                     self.rounds_config.get_current_round_config().only_check_for_presence
                 ):
                     if guess != Guess.nothing:
@@ -458,17 +470,31 @@ class Config(BaseModel):
                     correct = guess == correct_answer
 
                 if correct:
+                    status = Status.correct
                     score += 1.0
+                else:
+                    status = Status.incorrect
+
+                if self.rounds_config.is_penalized(
+                    group_config.key, current_round, lap
+                ):
+                    score -= 0.5
+
+                    if correct:
+                        status = Status.correct_penalized
+                    else:
+                        status = Status.incorrect_penalized
 
                 hide = lap > current_lap
 
-                answers.append(Answer(guess=guess, correct=correct, hide=hide))
+                answers.append(Answer(guess=guess, status=status, hide=hide))
 
             rows.append(
                 LeaderboardRow(name=group_config.name, answers=answers, score=score)
             )
 
         return LeaderboardStatus(
+            round_name=self.rounds_config.get_current_round_config().name,
             current_correct_guess=current_correct_guess,
             current_round=current_round,
             current_lap=current_lap,

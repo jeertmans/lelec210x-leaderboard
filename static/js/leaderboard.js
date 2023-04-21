@@ -53,6 +53,7 @@ socket.on("update_leaderboard", (message) => {
 
   // Update HTML with new values
   let compiledHtml = template({
+    round_name: state.client.round_name,
     current_round: state.client.current_round + 1,
     current_lap: state.client.current_lap + 1,
     number_of_rounds: state.client.number_of_rounds,
