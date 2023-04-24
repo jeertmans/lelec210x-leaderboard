@@ -1,9 +1,10 @@
 import flask
-from backend.models import Guess, Submission
 from flask import Blueprint
 from flask import current_app as app
 from flask import jsonify, make_response, render_template
 from flask_restx import Api, Resource
+
+from backend.models import Guess, Submission
 
 leaderboard = Blueprint("leaderboard", __name__, static_folder="../static")
 

@@ -72,18 +72,19 @@ class Submission(BaseModel):
 
 class RoundConfig(BaseModel):
     name: str = ""
-    lap_count: PositiveInt = 20
+    lap_count: PositiveInt = 16
     lap_duration: PositiveFloat = 13.0
     only_check_for_presence: bool = False
+    with_noise: bool = False
 
 
 class RoundsConfig(BaseModel):
     rounds: List[RoundConfig] = [
-        RoundConfig(only_check_for_presence=True),
-        RoundConfig(),
-        RoundConfig(),
-        RoundConfig(),
-        RoundConfig(),
+        RoundConfig(name="Functionality", only_check_for_presence=True),
+        RoundConfig(name="Communication range", only_check_for_presence=True),
+        RoundConfig(name="Power consumption", only_check_for_presence=True),
+        RoundConfig(name="Classification accuracy"),
+        RoundConfig(name="Classification robustness", with_noise=True),
     ]
     seed: PositiveInt = 1234
     start_paused: bool = True
@@ -369,6 +370,7 @@ class LeaderboardRow(BaseModel):
 class LeaderboardStatus(BaseModel):
     round_name: str
     current_correct_guess: Guess
+    current_with_noise: bool
     current_round: conint(ge=0)
     current_lap: conint(ge=0)
     number_of_rounds: conint(ge=0)
@@ -437,6 +439,7 @@ class Config(BaseModel):
     def get_leaderboard_status(self) -> LeaderboardStatus:
 
         current_correct_guess = self.rounds_config.get_current_correct_guess()
+        current_with_noise = self.rounds_config.get_current_round_config().with_noise
         current_round = self.rounds_config.get_current_round()
         current_lap = self.rounds_config.get_current_lap()
         number_of_rounds = self.rounds_config.get_number_of_rounds()
@@ -496,6 +499,7 @@ class Config(BaseModel):
         return LeaderboardStatus(
             round_name=self.rounds_config.get_current_round_config().name,
             current_correct_guess=current_correct_guess,
+            current_with_noise=current_with_noise,
             current_round=current_round,
             current_lap=current_lap,
             number_of_rounds=number_of_rounds,

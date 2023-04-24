@@ -3,13 +3,14 @@ import os
 import random
 import time
 from datetime import datetime
-
-# This hides the "Hello from the pygame..." message
-os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+from threading import Thread
 
 import click
-import pygame
 import requests
+
+from pydub import AudioSegment
+from pydub.generators import WhiteNoise
+from pydub.playback import play
 
 CATEGORIES = [
     "birds",
@@ -84,7 +85,6 @@ def main(url, key, random_key):
             info("Waiting server to be ready")
             time.sleep(0.2)
 
-    pygame.mixer.init()
     played_sounds = set()
 
     while True:
@@ -105,6 +105,7 @@ def main(url, key, random_key):
         time_before_next_lap = json["time_before_next_lap"]
         time_before_playing = json["time_before_playing"]
         category = json["current_correct_guess"]
+        with_noise = json["current_with_noise"]
 
         sound_key = (current_round + 1, current_lap + 1)
 
@@ -124,10 +125,16 @@ def main(url, key, random_key):
 
         info(f"Playing sound in {time_before_playing}")
 
-        time.sleep(time_before_playing)
-        sound = pygame.mixer.Sound(sound_file)
-        sound.play()
         start = time.time()
+        sound = AudioSegment.from_file(sound_file, format="wav").normalize()
+
+        if with_noise:
+            sound = sound.overlay(WhiteNoise().to_audio_segment(duration=len(sound), volume=-20.0 + current_lap))
+
+        time.sleep(time_before_playing - max(0, time.time() - start))
+
+        thread = Thread(target=play, args=(sound,))
+        thread.start()
         info("Playing sound now")
 
         # Admins are always correct :-)
@@ -137,8 +144,7 @@ def main(url, key, random_key):
             guess = random.choice(CATEGORIES)
             requests.patch(f"{url}/lelec2103/leaderboard/submit/{random_key}/{guess}")
 
-        delay = time.time() - start
-        time.sleep(max(0, SOUND_DURATION - delay))
+        thread.join()
 
 
 if __name__ == "__main__":
