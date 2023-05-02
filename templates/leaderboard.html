@@ -21,8 +21,24 @@
       {{/if}}
     </header>
     <main>
+      <table class="security_table" style="float: left">
+        <tbody>
+          <tr>
+            <th>Security</th>
+          </tr>
+          {{#each leaderboard}}
+          <tr>
+            {{# if this.security_round }}
+              <th>{{this.security_round.score}} % | #{{this.security_round.traces}} | {{this.security_round.time}}</th>
+            {{else}}
+              <th class="security_nothing"></th>
+            {{/if}}
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
       <div id="leaderboard_wrapper" class="table_wrapper">
-        <table>
+        <table style="float: left">
           <tbody>
             <tr>
               <th>Groups</th>

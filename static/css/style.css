@@ -14,7 +14,7 @@ html {
   --table-border-color: #023047;
   --table-fixed-width: 130px;
   --table-fixed-padding: 12px;
-  --table-width: 100px;
+  --table-width: 70px;
   --table-n-visible: 5;
 }
 
@@ -41,6 +41,29 @@ body {
   background: url("./forest-background-sunset.png") no-repeat fixed top center,
     #281f3c;
   background-size: 100%;
+}
+
+.security_table {
+  border-spacing: 0;
+  row-gap: 3px;
+  opacity: 0.8;
+  border: var(--table-border-width) solid var(--table-border-color);
+}
+
+.security_table th {
+  min-width: 200px;
+  background-color: #d9a820;
+  text-align: center;
+  height: 48px;
+}
+
+.security_table tr:first-child th {
+  border-bottom: var(--table-border-width) solid var(--table-border-color);
+  color: white;
+  background-image: url("./class_icons/security.png");
+  background-position: left 75% center;
+  background-size: auto 75%;
+  background-repeat: repeat;
 }
 
 .table_wrapper {
@@ -93,16 +116,17 @@ tr:nth-child(even) {
 .table_wrapper th:first-child,
 .table_wrapper th:last-child {
   position: sticky;
-  min-width: var(--table-fixed-width);
   padding: 0px var(--table-fixed-padding);
 }
 
 .table_wrapper th:first-child {
   z-index: 300;
+  min-width: 180px;
   left: 0;
 }
 
 .table_wrapper th:last-child {
+  min-width: 50px;
   right: 0;
 }
 
@@ -185,4 +209,8 @@ tr:nth-child(even) {
 .hide {
   opacity: 0.8;
   background-color: white;
+}
+
+.security_nothing {
+  opacity: 0.2;
 }

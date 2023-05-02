@@ -3,7 +3,8 @@ import time
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from secrets import token_bytes
+from typing import Dict, List, Optional
 
 from pydantic import (
     BaseModel,
@@ -78,6 +79,16 @@ class RoundConfig(BaseModel):
     with_noise: bool = False
 
 
+class SecurityRound(BaseModel):
+    key: bytes = token_bytes(16)
+
+
+class SecurityGuess(BaseModel):
+    time: str  # Pretty formatted HH:MM time
+    score: conint(ge=0, le=100)  # Score is a percentage (integer)
+    traces: int  # Number of traces
+
+
 class RoundsConfig(BaseModel):
     rounds: List[RoundConfig] = [
         RoundConfig(name="Functionality", only_check_for_presence=True),
@@ -86,6 +97,7 @@ class RoundsConfig(BaseModel):
         RoundConfig(name="Classification accuracy"),
         RoundConfig(name="Classification robustness", with_noise=True),
     ]
+    security_round: SecurityRound = SecurityRound()
     seed: PositiveInt = 1234
     start_paused: bool = True
     restart_when_finished: bool = False
@@ -103,6 +115,7 @@ class RoundsConfig(BaseModel):
     __current_lap: conint(ge=0) = PrivateAttr()
     __finished: bool = PrivateAttr()
     __submissions: List[Submission] = PrivateAttr([])
+    __security_round_submissions: Dict[str, SecurityGuess] = PrivateAttr({})
     __await_next_round: bool = PrivateAttr(False)
 
     def __init__(self, *args, **kwargs):
@@ -128,6 +141,30 @@ class RoundsConfig(BaseModel):
             ), f"Lap duration is not long enough: {lap_duration} is shorted than {total}"
 
         return values
+
+    def add_security_round_submission(self, key: str, guess: bytes, traces: int):
+        """
+        Adds a new submission to the security round.
+        """
+        correct = bytearray(self.security_round.key)
+        guess = bytearray(guess)
+
+        score = 0
+        for left, right in zip(correct[::-1], guess[::-1]):
+            if left == right:
+                score += 1
+
+        score = int(100 * (score / len(correct)))
+
+        self.__security_round_submissions[key] = SecurityGuess(
+            score=score, traces=traces, time=time.strftime("%H:%M")
+        )
+
+    def get_security_round_submission(self, key: str) -> Optional[SecurityGuess]:
+        """
+        Returns the security round submission by the given group.
+        """
+        return self.__security_round_submissions.get(key, None)
 
     def add_submission(self, submission: Submission):
         """
@@ -365,6 +402,7 @@ class LeaderboardRow(BaseModel):
     name: str
     answers: List[Answer]
     score: float
+    security_round: Optional[SecurityGuess]
 
 
 class LeaderboardStatus(BaseModel):
@@ -493,7 +531,14 @@ class Config(BaseModel):
                 answers.append(Answer(guess=guess, status=status, hide=hide))
 
             rows.append(
-                LeaderboardRow(name=group_config.name, answers=answers, score=score)
+                LeaderboardRow(
+                    name=group_config.name,
+                    answers=answers,
+                    score=score,
+                    security_round=self.rounds_config.get_security_round_submission(
+                        group_config.key
+                    ),
+                )
             )
 
         return LeaderboardStatus(

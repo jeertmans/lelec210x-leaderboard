@@ -10,7 +10,7 @@ from flask_socketio import SocketIO
 from backend.models import DEFAULT_CONFIG_PATH, Config
 from cli.config import config
 from routes.index import index
-from routes.leaderboard import leaderboard
+from routes.leaderboard import leaderboard, limiter
 
 eventlet.monkey_patch(thread=True, time=True)
 
@@ -34,6 +34,7 @@ class PrefixMiddleware(object):
 
 app = Flask(__name__, template_folder="templates")
 
+
 if app.debug and os.environ.get("FLASK_PROFILER", "0") == "1":
     from werkzeug.middleware.profiler import ProfilerMiddleware
 
@@ -53,6 +54,7 @@ config_path = app.config.get("CONFIG_PATH", DEFAULT_CONFIG_PATH)
 app.config["CONFIG"] = Config.parse_file(config_path)
 app.config["CONFIG_PATH"] = config_path
 app.config["CONFIG_NEEDS_SAVE"] = False
+app.config["LIMITER"] = limiter
 
 app.config["SCHEDULER_API_ENABLE"] = True
 
@@ -61,6 +63,7 @@ with app.app_context():
 
 scheduler = APScheduler()
 scheduler.init_app(app)
+limiter.init_app(app)
 
 app.register_blueprint(index, url_prefix="/index")
 app.register_blueprint(leaderboard, url_prefix="/leaderboard")

@@ -100,9 +100,9 @@ git pull
 Note that deploying on perceval requires a few changes:
 
 - one in `.faskenv`;
-- and a second in `static/js/Leadeboard`;
+- and a second in `static/js/leadeboard`;
 
-were you need to (un)comment some lines.
+where you need to (un)comment some lines.
 
 Next, everything should run as expected.
 
@@ -110,4 +110,29 @@ A simple way to run the server in background is with `screen`:
 
 ```bash
 screen -d -m poetry run python app.py
+```
+
+## Submitting a Key for the Security Round
+
+The security round takes place in parallel to all the other rounds,
+and submission is therefore always open.
+
+Each group can submit a key guess, and have its score displayed on the scoreboard.
+
+For security concerns, the score will not be returned by the API, and the number
+of requests will be limited (to avoid attacking the server instead).
+
+A valid key guess is 16 bytes long.
+
+```python
+import urllib
+
+# You guess
+guess = [161, 15, 114, 205, 173, 97, 19, 139, 172, 136, 170, 73, 85, 252, 63, 133]
+
+# First, convert that to bytes:
+guess_bytes = bytes(guess)
+
+# Then, encode this as an url-safe string:
+guess_str = urllib.parse.quote_from_bytes(guess_bytes, safe="")
 ```

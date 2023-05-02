@@ -1,7 +1,11 @@
+import urllib
+
 import flask
 from flask import Blueprint
 from flask import current_app as app
 from flask import jsonify, make_response, render_template
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_restx import Api, Resource
 
 from backend.models import Guess, Submission
@@ -14,6 +18,73 @@ api = Api(
     description="The API documentation. Please click on **default** to show all the possible endpoints.",
     doc="/doc/",
 )
+
+limiter = Limiter(
+    get_remote_address,
+    storage_uri="memory://",
+)
+
+
+@api.route("/security/<path:key>/<path:guess>/<path:traces>", methods=["POST"])
+@api.param("key", "Your key")
+@api.param("guess", "Your guess")
+@api.param("traces", "The number of traces your measured")
+class Security(Resource):
+    """
+    Submits a guess for the security round.
+    """
+
+    # https://stackoverflow.com/questions/60369112/flask-limiter-does-not-work-with-flask-restful-api-based-application
+    decorators = [limiter.limit("30 per minute")]
+
+    def post(self, key, guess, traces):
+        try:
+            app.config["CONFIG"].get_group_by_key(key)  # IndexError if invalid key
+            guess_bytes = urllib.parse.unquote_to_bytes(guess)
+            traces_int = int(traces)
+
+            app.config["CONFIG"].rounds_config.add_security_round_submission(
+                key, guess_bytes, traces_int
+            )
+            return make_response(
+                jsonify(
+                    {
+                        "guess": guess,
+                        "traces": traces,
+                    }
+                ),
+                200,
+            )
+        except IndexError:
+            return make_response(
+                jsonify(
+                    {
+                        "error": "the provided key does not match any group name",
+                        "key": key,
+                    }
+                ),
+                401,
+            )
+        except IndexError:
+            return make_response(
+                jsonify(
+                    {
+                        "error": "traces could not be parse into an integer",
+                        "traces": traces,
+                    }
+                ),
+                401,
+            )
+        except:
+            return make_response(
+                jsonify(
+                    {
+                        "error": "the provided guess cannot be properly decoded using base64.b64decode",
+                        "guess": guess,
+                    }
+                ),
+                401,
+            )
 
 
 @api.route("/submit/<path:key>/<path:guess>", methods=["PATCH", "POST"])
