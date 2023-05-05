@@ -24,8 +24,7 @@ limiter = Limiter(
     storage_uri="memory://",
 )
 
-
-@api.route("/security/<path:key>/<path:guess>/<path:traces>", methods=["POST"])
+@api.route("/submit/<path:key>/<path:guess>", methods=["PATCH", "POST"])
 @api.param("key", "Your key")
 @api.param("guess", "Your guess")
 @api.param("traces", "The number of traces your measured")
@@ -87,14 +86,12 @@ class Security(Resource):
             )
 
 
-@api.route("/submit/<path:key>/<path:guess>", methods=["PATCH", "POST"])
+@api.route("/submit/<path:key>/<path:guess>", methods=["POST"])
 @api.param("key", "Your key")
 @api.param("guess", "Your guess")
 class Submit(Resource):
     """
     Submits a guess to current round and current lap.
-
-    If PATCH, this modifies the previous submissions (recommended usage).
     """
 
     def dispatch_request(self, key, guess):
@@ -109,27 +106,33 @@ class Submit(Resource):
 
             if not rounds_config.is_paused():
                 if flask.request.method == "PATCH":
-                    last = rounds_config.get_last_submission(
-                        round=current_round,
-                        lap=current_lap,
-                        key=key,
+                    last = (
+                        Submission.query.filter_by(
+                            round=current_round,
+                            lap=current_lap,
+                            key=key,
+                            disqualified=False,
+                        )
+                        .order_by(Submission.timestamp.desc())
+                        .first()
                     )
 
-                    if last != Guess.nothing:
+                    if last:
                         last.guess = guess
+                        db.session.commit()
                         return make_response(
                             jsonify(
                                 {
                                     "guess": guess,
                                     "round": current_round,
                                     "lap": current_lap,
-                                    "penalized": last.penalized,
+                                    "disqualified": last.disqualified,
                                 }
                             ),
                             200,
                         )
 
-                rounds_config.add_submission(
+                db.session.add(
                     Submission(
                         round=current_round,
                         lap=current_lap,
